@@ -12,31 +12,49 @@
             box-sizing: border-box;
         }
 
+        .bg-layer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            background-color: #000;
+            background-image: url('/static/icon.png'), url('/static/icon.png');
+            background-repeat: repeat;
+            background-size: 90px 90px;
+            background-position: 0 0, 45px 45px;
+            opacity: 0.7;
+        }
+
         body {
             font-family: 'Courier New', Courier, monospace;
-            background: #000000;
+            background: transparent;
             color: #ffffff;
             min-height: 100vh;
             display: flex;
             justify-content: center;
-            align-items: center;
-            padding: 15px;
+            align-items: flex-start;
+            padding: clamp(15px, 3vw, 40px);
             line-height: 1.6;
         }
 
         .container {
-            background: #0a0a0a;
+            background: rgba(10, 10, 10, 0.92);
             border: 1px solid #333333;
-            max-width: 1200px;
+            border-radius: 16px;
+            max-width: 860px;
             width: 100%;
-            box-shadow: 0 0 20px rgba(255, 255, 255, 0.05);
+            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+            overflow: hidden;
+            margin: auto;
         }
 
         .header {
-            background: #000000;
+            background: rgba(0, 0, 0, 0.6);
             border-bottom: 1px solid #333333;
             color: #ffffff;
-            padding: 25px 20px;
+            padding: clamp(20px, 4vw, 35px) clamp(20px, 5vw, 40px);
             text-align: center;
         }
 
@@ -94,6 +112,7 @@
             padding: 12px 15px;
             background: #000000;
             border: 1px solid #333333;
+            border-radius: 8px;
             color: #ffffff;
             font-size: clamp(12px, 3vw, 14px);
             font-family: 'Courier New', Courier, monospace;
@@ -115,6 +134,7 @@
             color: #000000;
             padding: 12px 24px;
             border: 1px solid #ffffff;
+            border-radius: 8px;
             font-size: clamp(12px, 3vw, 14px);
             font-weight: 600;
             cursor: pointer;
@@ -165,6 +185,7 @@
             margin-bottom: 20px;
             display: none;
             border-left: 3px solid;
+            border-radius: 8px;
             font-size: clamp(11px, 3vw, 13px);
             letter-spacing: 0.5px;
         }
@@ -217,6 +238,7 @@
         .question-card {
             background: #000000;
             border: 1px solid #333333;
+            border-radius: 10px;
             padding: clamp(15px, 4vw, 20px);
             margin-bottom: 20px;
             transition: border-color 0.3s;
@@ -256,6 +278,7 @@
             background: #ffffff;
             color: #000000;
             padding: 4px 12px;
+            border-radius: 20px;
             font-size: clamp(10px, 2.5vw, 12px);
             letter-spacing: 0.5px;
             text-transform: uppercase;
@@ -277,6 +300,7 @@
             padding: 10px 12px;
             background: #0a0a0a;
             border: 1px solid #222222;
+            border-radius: 6px;
             margin-bottom: 8px;
             font-size: clamp(12px, 3vw, 14px);
             transition: border-color 0.3s;
@@ -311,6 +335,7 @@
             background: #000000;
             color: #ffffff;
             border: 1px solid #333333;
+            border-radius: 10px;
             padding: clamp(15px, 4vw, 20px);
             margin-top: 30px;
             position: relative;
@@ -336,6 +361,7 @@
             background: #0a0a0a;
             padding: 15px;
             border: 1px solid #222222;
+            border-radius: 8px;
             font-family: 'Courier New', Courier, monospace;
             font-size: clamp(11px, 2.5vw, 13px);
             white-space: pre-wrap;
@@ -372,6 +398,7 @@
         .stat-card {
             background: #000000;
             border: 1px solid #333333;
+            border-radius: 10px;
             padding: 20px;
             text-align: center;
             transition: border-color 0.3s;
@@ -403,6 +430,7 @@
         @media (max-width: 768px) {
             body {
                 padding: 10px;
+                align-items: flex-start;
             }
 
             .content {
@@ -430,7 +458,7 @@
 
         @media (max-width: 480px) {
             .container {
-                border: none;
+                border-radius: 10px;
             }
 
             .form-group input {
@@ -444,6 +472,36 @@
             .prompt-text {
                 font-size: 11px;
                 padding: 12px;
+            }
+        }
+
+        @media (min-width: 1024px) {
+            body {
+                padding: 40px;
+                align-items: center;
+                min-height: 100vh;
+            }
+
+            .container {
+                max-width: 860px;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+
+            .content {
+                padding: 40px 50px;
+            }
+        }
+
+        @media (min-width: 1440px) {
+            body {
+                padding: 60px;
+            }
+
+            .container {
+                max-width: 960px;
             }
         }
 
@@ -461,6 +519,8 @@
     </style>
 </head>
 <body>
+    <div class="bg-layer"></div>
+
     <div class="container">
         <div class="header">
             <h1>LMS Quiz Extractor</h1>
@@ -474,7 +534,7 @@
                 <form id="loginForm">
                     <div class="form-group">
                         <label for="username">Username</label>
-                        <input type="text" id="username" placeholder="Enter username" required>
+                        <input type="text" id="username" placeholder="Enter your PLSD-LMS username" required>
                     </div>
                     <div class="form-group">
                         <label for="password">Password</label>
