@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 from typing import List, Dict, Optional
 import logging
 import secrets
+import os
 
 # Configure logging
 logging.basicConfig(
@@ -16,8 +17,17 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-app.secret_key = secrets.token_hex(32)
-CORS(app)
+
+# Use a fixed secret key from environment variable so sessions survive Render restarts/sleep cycles.
+# Set SECRET_KEY in your Render environment variables dashboard.
+# Fallback generates a random key (sessions won't persist across restarts — set the env var!).
+app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(32))
+
+# Make sessions last longer (7 days)
+from datetime import timedelta
+app.permanent_session_lifetime = timedelta(days=7)
+
+CORS(app, supports_credentials=True)
 
 
 class QuestionExtractor:
@@ -436,9 +446,14 @@ class QuestionExtractor:
 
 
 class LMSSession:
-    """Manages LMS session per user"""
+    """Manages LMS session per user.
     
-    def __init__(self, username: str, password: str, base_url: str = None):
+    Instead of storing the requests.Session object (which can't be serialized),
+    we store the cookies as a plain dict in Flask's session cookie.
+    The LMSSession is reconstructed on each request from those stored cookies.
+    """
+    
+    def __init__(self, username: str, password: str, base_url: str = None, cookies: dict = None):
         self.username = username
         self.password = password
         self.session = requests.Session()
@@ -452,6 +467,14 @@ class LMSSession:
             'Accept-Language': 'en-US,en;q=0.5',
             'Accept-Encoding': 'gzip, deflate, br',
         })
+        
+        # Restore cookies if provided (so we don't need to re-login)
+        if cookies:
+            self.session.cookies.update(cookies)
+    
+    def get_cookies(self) -> dict:
+        """Return session cookies as a plain dict for storage in Flask session."""
+        return dict(self.session.cookies)
     
     def get_login_token(self) -> Optional[str]:
         """Retrieve login token from login page"""
@@ -505,6 +528,15 @@ class LMSSession:
             
         except RequestException as e:
             logger.error(f"Login request failed: {str(e)}")
+            return False
+    
+    def is_session_valid(self) -> bool:
+        """Check if the stored cookies still give us an authenticated session."""
+        try:
+            response = self.session.get(self.base_url + '/my/', timeout=10, allow_redirects=True)
+            # If we end up on a login page, the session has expired
+            return 'login' not in response.url.lower()
+        except Exception:
             return False
     
     def fetch_page(self, url: str) -> Optional[str]:
@@ -581,14 +613,38 @@ class LMSSession:
         return normalized
 
 
-# Store sessions in memory (for production, use Redis or database)
-user_sessions = {}
-
+# ---------------------------------------------------------------------------
+# Routes
+# ---------------------------------------------------------------------------
 
 @app.route('/')
 def index():
     """Serve the main HTML page"""
     return render_template('index.html')
+
+
+@app.route('/api/check_session', methods=['GET'])
+def api_check_session():
+    """Check if the user already has a valid session stored in their cookie."""
+    cookies = session.get('lms_cookies')
+    username = session.get('lms_username')
+    password = session.get('lms_password')
+
+    if not cookies or not username or not password:
+        return jsonify({'logged_in': False})
+
+    try:
+        lms = LMSSession(username, password, cookies=cookies)
+        if lms.is_session_valid():
+            return jsonify({'logged_in': True, 'username': username})
+        else:
+            # Session expired — clear stored data
+            session.pop('lms_cookies', None)
+            session.pop('lms_username', None)
+            session.pop('lms_password', None)
+            return jsonify({'logged_in': False})
+    except Exception:
+        return jsonify({'logged_in': False})
 
 
 @app.route('/api/login', methods=['POST'])
@@ -605,14 +661,16 @@ def api_login():
         lms_session = LMSSession(username, password)
         
         if lms_session.login():
-            session_id = secrets.token_hex(16)
-            user_sessions[session_id] = lms_session
-            session['session_id'] = session_id
+            # Store the LMS cookies + credentials in the signed Flask session cookie.
+            # This survives Render restarts as long as SECRET_KEY stays the same.
+            session.permanent = True
+            session['lms_cookies'] = lms_session.get_cookies()
+            session['lms_username'] = username
+            session['lms_password'] = password
             
             return jsonify({
                 'success': True,
-                'message': 'Login successful',
-                'session_id': session_id
+                'message': 'Login successful'
             })
         else:
             return jsonify({
@@ -631,9 +689,11 @@ def api_login():
 @app.route('/api/extract', methods=['POST'])
 def api_extract():
     """Handle quiz extraction requests"""
-    session_id = session.get('session_id')
-    
-    if not session_id or session_id not in user_sessions:
+    cookies = session.get('lms_cookies')
+    username = session.get('lms_username')
+    password = session.get('lms_password')
+
+    if not cookies or not username or not password:
         return jsonify({'success': False, 'message': 'Not logged in'}), 401
     
     data = request.json
@@ -643,8 +703,13 @@ def api_extract():
         return jsonify({'success': False, 'message': 'Quiz URL required'}), 400
     
     try:
-        lms_session = user_sessions[session_id]
+        # Reconstruct the LMS session from stored cookies
+        lms_session = LMSSession(username, password, cookies=cookies)
+
         questions = lms_session.get_all_pages(quiz_url)
+
+        # Persist any updated cookies back to the Flask session
+        session['lms_cookies'] = lms_session.get_cookies()
         
         if not questions:
             return jsonify({
@@ -669,15 +734,10 @@ def api_extract():
 @app.route('/api/logout', methods=['POST'])
 def api_logout():
     """Handle logout requests"""
-    session_id = session.get('session_id')
-    
-    if session_id and session_id in user_sessions:
-        del user_sessions[session_id]
-    
     session.clear()
-    
     return jsonify({'success': True, 'message': 'Logged out successfully'})
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(debug=False, host='0.0.0.0', port=port)

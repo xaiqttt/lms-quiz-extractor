@@ -533,6 +533,21 @@
         let extractedQuestions = [];
         let currentUsername = '';
 
+        // On page load, check if the user already has a valid session (e.g. after refresh or returning)
+        (async function checkExistingSession() {
+            try {
+                const response = await fetch('/api/check_session', { credentials: 'same-origin' });
+                const data = await response.json();
+                if (data.logged_in) {
+                    currentUsername = data.username || 'User';
+                    document.getElementById('usernameDisplay').textContent = currentUsername;
+                    showSection('extractSection');
+                }
+            } catch (e) {
+                // silently ignore — user will just see the login form
+            }
+        })();
+
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             

@@ -5,5 +5,5 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app
     envVars:
-      - key: SECRET_KEY
+      - key: etits
         generateValue: true   # Render generates a random value ONCE and keeps it stable
