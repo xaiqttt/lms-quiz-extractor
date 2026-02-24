@@ -7,3 +7,7 @@ services:
     envVars:
       - key: SECRET_KEY
         generateValue: true   # Render generates a random value ONCE and keeps it stable
+      - key: 8630040741:AAFIGza2z422T9x-m7H4k9Y8o1fkmkZKZXY
+        sync: false           # Set manually in Render dashboard
+      - key: 7363867528
+        sync: false           # Set manually in Render dashboard
